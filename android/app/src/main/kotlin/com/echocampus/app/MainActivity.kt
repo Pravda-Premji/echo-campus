@@ -1,4 +1,4 @@
-package com.example.echo_campus
+package com.echocampus.app
 
 import io.flutter.embedding.android.FlutterActivity
 

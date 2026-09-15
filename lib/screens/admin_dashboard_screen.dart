@@ -13,7 +13,7 @@ class AdminDashboardScreen extends StatelessWidget {
     final repo = EchoScope.of(context);
     final urgent = repo.activeEchoes.where((echo) {
       final health = repo.healthFor(echo.location).score;
-      return health < 50 || echo.confidence >= 85;
+      return health < 50 || echo.reliability() >= 85;
     }).length;
     final active = repo.activeEchoes.length;
     final resolved = repo.resolvedEchoes.length;
@@ -101,7 +101,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       Text(echo.title, style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 4),
                       Text(
-                        '${echo.location.label} · ${echo.confidence}% confidence',
+                        '${echo.location.label} · ${echo.reliability()}% reliability',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),

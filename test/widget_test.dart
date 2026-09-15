@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_campus/data/echo_repository.dart';
 import 'package:echo_campus/main.dart';
 import 'package:echo_campus/models/campus_location.dart';
 import 'package:echo_campus/models/echo.dart';
 import 'package:echo_campus/models/echo_category.dart';
+import 'package:echo_campus/models/freshness.dart';
 import 'package:echo_campus/services/smart_classifier.dart';
 
 Future<void> _phoneSurface(WidgetTester tester) async {
@@ -15,6 +17,15 @@ Future<void> _phoneSurface(WidgetTester tester) async {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Each test gets a clean, empty local-storage backing so persisted state
+  // from one test never leaks into the next (EchoRepository always hydrates
+  // from shared_preferences on construction).
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('Home shows campus locations and add echo', (tester) async {
     await _phoneSurface(tester);
     await tester.pumpWidget(EchoApp(repository: EchoRepository()));
@@ -139,5 +150,111 @@ void main() {
       'Weak Wi-Fi near back seats',
       'Faulty power socket',
     ]));
+  });
+
+  test('Reliability decays deterministically and resets on confirmation', () {
+    final lastConfirmedAt = DateTime(2024, 1, 1, 8, 0);
+    final echo = Echo(
+      id: 'echo-decay-test',
+      title: 'Test observation',
+      description: 'Used only to exercise the decay formula.',
+      category: EchoCategory.other,
+      location: CampusLocation.library,
+      confidence: 90,
+      confirmations: 1,
+      createdAt: lastConfirmedAt,
+    );
+
+    // Inside the 4-hour grace period: full reliability, no decay yet.
+    expect(
+      echo.reliability(now: lastConfirmedAt.add(const Duration(hours: 2))),
+      90,
+    );
+
+    // 14h since confirmation = 10h past the 4h grace period -> -2/hour = -20.
+    expect(
+      echo.reliability(now: lastConfirmedAt.add(const Duration(hours: 14))),
+      70,
+    );
+
+    // Long unconfirmed: decay clamps at the 5% floor, never reaches zero.
+    expect(
+      echo.reliability(now: lastConfirmedAt.add(const Duration(hours: 200))),
+      minReliability,
+    );
+
+    // "STILL TRUE" resets the clock: reliability returns to the (new) base
+    // as of the moment it was confirmed.
+    final reconfirmed = echo.copyWith(
+      confidence: 95,
+      lastConfirmedAt: lastConfirmedAt.add(const Duration(hours: 14)),
+    );
+    expect(
+      reconfirmed.reliability(now: lastConfirmedAt.add(const Duration(hours: 14))),
+      95,
+    );
+  });
+
+  test('Freshness tier follows time since last confirmation', () {
+    final lastConfirmedAt = DateTime(2024, 1, 1, 8, 0);
+    final echo = Echo(
+      id: 'echo-freshness-test',
+      title: 'Test observation',
+      description: 'Used only to exercise the freshness tiers.',
+      category: EchoCategory.other,
+      location: CampusLocation.library,
+      confidence: 80,
+      confirmations: 1,
+      createdAt: lastConfirmedAt,
+    );
+
+    expect(
+      echo.freshness(now: lastConfirmedAt.add(const Duration(hours: 1))),
+      EchoFreshness.fresh,
+    );
+    expect(
+      echo.freshness(now: lastConfirmedAt.add(const Duration(hours: 10))),
+      EchoFreshness.aging,
+    );
+    expect(
+      echo.freshness(now: lastConfirmedAt.add(const Duration(hours: 30))),
+      EchoFreshness.outdated,
+    );
+  });
+
+  test('EchoRepository persists new, confirmed, and resolved Echoes locally',
+      () async {
+    final repo1 = EchoRepository();
+    await repo1.pendingHydrate;
+
+    final added = repo1.addEcho(
+      title: 'Elevator in block C is stuck',
+      description: 'Elevator in block C is stuck between floors.',
+      category: EchoCategory.maintenance,
+      location: CampusLocation.seminarHall,
+    );
+    await repo1.pendingWrite;
+
+    repo1.confirmStillTrue(added.id);
+    await repo1.pendingWrite;
+
+    final labEcho = repo1.activeFor(CampusLocation.lab204).first;
+    repo1.markResolved(labEcho.id);
+    await repo1.pendingWrite;
+
+    // A brand new repository instance (standing in for an app restart)
+    // should hydrate from the same local storage rather than reseeding.
+    final repo2 = EchoRepository();
+    await repo2.pendingHydrate;
+
+    final persistedAdded =
+        repo2.echoes.firstWhere((echo) => echo.id == added.id);
+    expect(persistedAdded.title, 'Elevator in block C is stuck');
+    expect(persistedAdded.confirmations, 2);
+
+    expect(
+      repo2.resolvedEchoes.any((echo) => echo.id == labEcho.id),
+      isTrue,
+    );
   });
 }
