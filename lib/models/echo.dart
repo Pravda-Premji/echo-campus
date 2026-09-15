@@ -1,5 +1,6 @@
 import 'campus_location.dart';
 import 'echo_category.dart';
+import 'echo_severity.dart';
 import 'freshness.dart';
 
 class Echo {
@@ -13,7 +14,9 @@ class Echo {
     required this.confirmations,
     required this.createdAt,
     DateTime? lastConfirmedAt,
+    this.severity,
     this.resolved = false,
+    this.resolvedAt,
   }) : lastConfirmedAt = lastConfirmedAt ?? createdAt;
 
   final String id;
@@ -34,7 +37,13 @@ class Echo {
   /// measured from this timestamp, not [createdAt], so a re-confirmed Echo
   /// is treated as freshly observed again.
   final DateTime lastConfirmedAt;
+
+  /// Optional, student-assigned severity. Purely informational.
+  final EchoSeverity? severity;
   final bool resolved;
+
+  /// When this Echo was marked resolved. Null while still active.
+  final DateTime? resolvedAt;
 
   /// Fresh / Aging / Outdated, based on time since [lastConfirmedAt].
   EchoFreshness freshness({DateTime? now}) =>
@@ -55,7 +64,9 @@ class Echo {
     int? confirmations,
     DateTime? createdAt,
     DateTime? lastConfirmedAt,
+    EchoSeverity? severity,
     bool? resolved,
+    DateTime? resolvedAt,
   }) {
     return Echo(
       id: id ?? this.id,
@@ -67,7 +78,9 @@ class Echo {
       confirmations: confirmations ?? this.confirmations,
       createdAt: createdAt ?? this.createdAt,
       lastConfirmedAt: lastConfirmedAt ?? this.lastConfirmedAt,
+      severity: severity ?? this.severity,
       resolved: resolved ?? this.resolved,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
     );
   }
 
@@ -76,29 +89,34 @@ class Echo {
         'title': title,
         'description': description,
         'category': category.name,
-        'location': location.name,
+        'location': location.toJson(),
         'confidence': confidence,
         'confirmations': confirmations,
         'createdAt': createdAt.toIso8601String(),
         'lastConfirmedAt': lastConfirmedAt.toIso8601String(),
+        'severity': severity?.name,
         'resolved': resolved,
+        'resolvedAt': resolvedAt?.toIso8601String(),
       };
 
   factory Echo.fromJson(Map<String, dynamic> json) {
     final createdAt = DateTime.parse(json['createdAt'] as String);
     final rawLastConfirmedAt = json['lastConfirmedAt'] as String?;
+    final rawSeverity = json['severity'] as String?;
     return Echo(
       id: json['id'] as String,
       title: json['title'] as String,
       description: json['description'] as String,
       category: EchoCategory.values.byName(json['category'] as String),
-      location: CampusLocation.values.byName(json['location'] as String),
+      location: CampusLocation.fromJson(json['location'] as Map<String, dynamic>),
       confidence: json['confidence'] as int,
       confirmations: json['confirmations'] as int,
       createdAt: createdAt,
       lastConfirmedAt:
           rawLastConfirmedAt != null ? DateTime.parse(rawLastConfirmedAt) : createdAt,
+      severity: rawSeverity != null ? EchoSeverity.values.byName(rawSeverity) : null,
       resolved: json['resolved'] as bool? ?? false,
+      resolvedAt: json['resolvedAt'] != null ? DateTime.parse(json['resolvedAt'] as String) : null,
     );
   }
 }

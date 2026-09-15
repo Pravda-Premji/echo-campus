@@ -115,6 +115,12 @@ class EchoCard extends StatelessWidget {
                       icon: Icons.schedule_rounded,
                       label: age,
                     ),
+                    if (echo.severity != null)
+                      _MetaChip(
+                        icon: Icons.priority_high_rounded,
+                        label: '${echo.severity!.label} severity',
+                        color: echo.severity!.color,
+                      ),
                   ],
                 ),
                 if (showActions) ...[

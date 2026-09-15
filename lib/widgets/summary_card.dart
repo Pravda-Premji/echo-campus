@@ -48,6 +48,15 @@ class SummaryCard extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+          const SizedBox(height: 12),
+          const Text(
+            'Generated on this device from confirmed reports — not AI.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

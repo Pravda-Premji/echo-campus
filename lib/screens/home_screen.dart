@@ -1,21 +1,32 @@
 import 'package:flutter/material.dart';
 
 import '../data/echo_scope.dart';
-import '../models/campus_location.dart';
+import '../services/alerts_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/alerts_section.dart';
 import '../widgets/echo_snack.dart';
 import '../widgets/location_card.dart';
 import '../widgets/offline_banner.dart';
 import 'add_echo_screen.dart';
+import 'add_location_screen.dart';
 import 'admin_dashboard_screen.dart';
+import 'echo_detail_screen.dart';
 import 'location_detail_screen.dart';
+import 'search_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  static const _alertsService = AlertsService();
+
   @override
   Widget build(BuildContext context) {
     final repo = EchoScope.of(context);
+    final favorites = repo.favoriteLocations;
+    final alerts = _alertsService.alertsFor(
+      activeEchoes: repo.activeEchoes,
+      resolvedEchoes: repo.resolvedEchoes,
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -42,6 +53,19 @@ class HomeScreen extends StatelessWidget {
                             ),
                       ),
                     ],
+                  ),
+                ),
+                Semantics(
+                  button: true,
+                  label: 'Search locations and Echoes',
+                  child: IconButton(
+                    tooltip: 'Search',
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SearchScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.search_rounded, color: EchoColors.indigo),
                   ),
                 ),
                 Semantics(
@@ -84,24 +108,83 @@ class HomeScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 22),
-            Semantics(
-              button: true,
-              label: 'Add an Echo',
-              child: FilledButton.icon(
-                onPressed: () async {
-                  final posted = await Navigator.of(context).push<bool>(
-                    MaterialPageRoute(builder: (_) => const AddEchoScreen()),
-                  );
-                  if (posted == true && context.mounted) {
-                    showEchoSnack(context, '✓ Echo added successfully');
-                  }
-                },
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('+ Add an Echo'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    button: true,
+                    label: 'Add an Echo',
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        final posted = await Navigator.of(context).push<bool>(
+                          MaterialPageRoute(builder: (_) => const AddEchoScreen()),
+                        );
+                        if (posted == true && context.mounted) {
+                          showEchoSnack(context, '✓ Echo added successfully');
+                        }
+                      },
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('+ Add an Echo'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Semantics(
+                  button: true,
+                  label: 'Add a new location',
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AddLocationScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.add_location_alt_rounded),
+                    label: const Text('Location'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 22),
-            ...CampusLocation.values.map((location) {
+            if (alerts.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              AlertsSection(
+                alerts: alerts,
+                onTapAlert: (alert) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => EchoDetailScreen(echoId: alert.echo.id)),
+                  );
+                },
+              ),
+            ],
+            if (favorites.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text('MY LOCATIONS', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 10),
+              ...favorites.map((location) {
+                final active = repo.activeFor(location);
+                final health = repo.healthFor(location);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: LocationCard(
+                    location: location,
+                    activeCount: active.length,
+                    health: health,
+                    isFavorite: true,
+                    onToggleFavorite: () => repo.toggleFavorite(location),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => LocationDetailScreen(location: location),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }),
+            ],
+            const SizedBox(height: 24),
+            Text('ALL LOCATIONS', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 10),
+            ...repo.locations.map((location) {
               final active = repo.activeFor(location);
               final health = repo.healthFor(location);
               return Padding(
@@ -110,6 +193,8 @@ class HomeScreen extends StatelessWidget {
                   location: location,
                   activeCount: active.length,
                   health: health,
+                  isFavorite: repo.isFavorite(location),
+                  onToggleFavorite: () => repo.toggleFavorite(location),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(

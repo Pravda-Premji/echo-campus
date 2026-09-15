@@ -12,12 +12,18 @@ class LocationCard extends StatelessWidget {
     required this.activeCount,
     required this.health,
     required this.onTap,
+    this.isFavorite = false,
+    this.onToggleFavorite,
   });
 
   final CampusLocation location;
   final int activeCount;
   final HealthSnapshot health;
   final VoidCallback onTap;
+  final bool isFavorite;
+
+  /// When provided, a favourite-toggle star is shown on the card.
+  final VoidCallback? onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +31,9 @@ class LocationCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: '${location.label}. $echoLabel. Health ${health.score} of 100. ${health.label}.',
+      label: '${location.label}. ${location.shortHint}. $echoLabel. '
+          'Health ${health.score} of 100. ${health.label}.'
+          '${isFavorite ? ' Favourited.' : ''}',
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
@@ -50,6 +58,7 @@ class LocationCard extends StatelessWidget {
                 border: Border.all(color: Colors.black.withOpacity(0.04)),
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     height: 56,
@@ -73,6 +82,11 @@ class LocationCard extends StatelessWidget {
                           location.labelUpper,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          location.shortHint,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           echoLabel,
@@ -94,7 +108,25 @@ class LocationCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right_rounded, color: EchoColors.muted),
+                  if (onToggleFavorite != null)
+                    Semantics(
+                      button: true,
+                      label: isFavorite
+                          ? 'Remove ${location.label} from favourites'
+                          : 'Add ${location.label} to favourites',
+                      child: IconButton(
+                        onPressed: onToggleFavorite,
+                        icon: Icon(
+                          isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: isFavorite ? EchoColors.warning : EchoColors.muted,
+                        ),
+                      ),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Icon(Icons.chevron_right_rounded, color: EchoColors.muted),
+                    ),
                 ],
               ),
             ),

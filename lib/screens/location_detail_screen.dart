@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/echo_scope.dart';
 import '../models/campus_location.dart';
 import '../models/echo.dart';
+import '../models/freshness.dart';
 import '../theme/app_theme.dart';
 import '../widgets/echo_card.dart';
 import '../widgets/echo_snack.dart';
@@ -23,6 +24,7 @@ class LocationDetailScreen extends StatefulWidget {
 
 class _LocationDetailScreenState extends State<LocationDetailScreen> {
   bool _showBriefing = false;
+  bool _showHistory = false;
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +33,27 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     final health = repo.healthFor(location);
     final active = repo.activeFor(location);
     final resolved = repo.resolvedFor(location);
+    final history = repo.historyFor(location);
+    final isFavorite = repo.isFavorite(location);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(location.labelUpper),
+        actions: [
+          Semantics(
+            button: true,
+            label: isFavorite
+                ? 'Remove ${location.label} from favourites'
+                : 'Add ${location.label} to favourites',
+            child: IconButton(
+              onPressed: () => repo.toggleFavorite(location),
+              icon: Icon(
+                isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                color: isFavorite ? EchoColors.warning : EchoColors.ink,
+              ),
+            ),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -62,7 +81,12 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                         location.labelUpper,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 2),
+                      Text(
+                        location.shortHint,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         'CAMPUS HEALTH',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -162,6 +186,25 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                   ),
                 )),
           ],
+          if (history.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Semantics(
+              button: true,
+              label: _showHistory ? 'Hide full history' : 'Show full history',
+              child: OutlinedButton.icon(
+                onPressed: () => setState(() => _showHistory = !_showHistory),
+                icon: Icon(_showHistory ? Icons.expand_less_rounded : Icons.history_rounded),
+                label: Text(_showHistory ? 'Hide history' : 'View full history (${history.length})'),
+              ),
+            ),
+            if (_showHistory) ...[
+              const SizedBox(height: 12),
+              ...history.map((echo) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _HistoryTile(echo: echo, onTap: () => _openDetail(echo)),
+                  )),
+            ],
+          ],
         ],
       ),
     );
@@ -171,5 +214,74 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => EchoDetailScreen(echoId: echo.id)),
     );
+  }
+}
+
+class _HistoryTile extends StatelessWidget {
+  const _HistoryTile({required this.echo, required this.onTap});
+
+  final Echo echo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final freshness = echo.freshness();
+    final tone = switch (freshness) {
+      EchoFreshness.fresh => EchoColors.success,
+      EchoFreshness.aging => EchoColors.warning,
+      EchoFreshness.outdated => EchoColors.danger,
+    };
+    final status = echo.resolved
+        ? 'Resolved ${_relative(echo.resolvedAt ?? echo.createdAt)}'
+        : 'Confirmed ${_relative(echo.lastConfirmedAt)} · ${echo.reliability()}% reliable';
+
+    return Semantics(
+      label: '${echo.title}. Created ${_relative(echo.createdAt)}. $status.',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.black.withOpacity(0.04)),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: echo.resolved ? EchoColors.success : tone,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(echo.title, style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Created ${_relative(echo.createdAt)} · $status',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _relative(DateTime time) {
+    final delta = DateTime.now().difference(time);
+    if (delta.inMinutes < 60) return '${delta.inMinutes.clamp(1, 59)}m ago';
+    if (delta.inHours < 24) return '${delta.inHours}h ago';
+    return '${delta.inDays}d ago';
   }
 }
