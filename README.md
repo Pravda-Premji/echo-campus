@@ -272,7 +272,7 @@ Screenshots of the Android application will be added here.
 
 
 
-!\[ECHO Home](screenshots/home.png)
+!\[ECHO Home](screenshots/home.jpeg)
 
 
 
@@ -280,7 +280,7 @@ Screenshots of the Android application will be added here.
 
 
 
-!\[Add Echo](screenshots/echo.png)
+!\[Add Echo](screenshots/echo.jpeg)
 
 
 
@@ -288,7 +288,7 @@ Screenshots of the Android application will be added here.
 
 
 
-!\[Location Details](screenshots/location.png)
+!\[Location Details](screenshots/location.jpeg)
 
 
 
